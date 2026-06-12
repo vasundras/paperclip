@@ -3910,6 +3910,21 @@ export function issueService(db: Db) {
     });
   }
 
+  function parseIssueAssigneeAgentFilter(
+    assigneeAgentId: IssueFilters["assigneeAgentId"],
+  ): string | null | undefined {
+    const normalizedRaw = typeof assigneeAgentId === "string" ? assigneeAgentId.trim() : assigneeAgentId;
+    const normalized = normalizedRaw === "" ? undefined : normalizedRaw;
+    if (typeof normalized !== "string") return normalized;
+    return normalized.toLowerCase() === "null" ? null : normalized;
+  }
+
+  function assertValidAssigneeAgentFilter(assigneeAgentFilter: string | null | undefined) {
+    if (typeof assigneeAgentFilter === "string" && !isUuidLike(assigneeAgentFilter)) {
+      throw unprocessable("assigneeAgentId must be a UUID or 'null'");
+    }
+  }
+
   return {
     clearExecutionRunIfTerminal,
     clearCheckoutRunIfTerminal,
@@ -3924,20 +3939,8 @@ export function issueService(db: Db) {
       }
 
       const conditions = [eq(issues.companyId, companyId)];
-      const normalizedAssigneeAgentFilterRaw = typeof filters?.assigneeAgentId === "string"
-        ? filters.assigneeAgentId.trim()
-        : filters?.assigneeAgentId;
-      const normalizedAssigneeAgentFilter = normalizedAssigneeAgentFilterRaw === ""
-        ? undefined
-        : normalizedAssigneeAgentFilterRaw;
-      const assigneeAgentFilter = typeof normalizedAssigneeAgentFilter === "string"
-        ? normalizedAssigneeAgentFilter.toLowerCase() === "null"
-          ? null
-          : normalizedAssigneeAgentFilter
-        : normalizedAssigneeAgentFilter;
-      if (typeof assigneeAgentFilter === "string" && !isUuidLike(assigneeAgentFilter)) {
-        throw unprocessable("assigneeAgentId must be a UUID or 'null'");
-      }
+      const assigneeAgentFilter = parseIssueAssigneeAgentFilter(filters?.assigneeAgentId);
+      assertValidAssigneeAgentFilter(assigneeAgentFilter);
       const limit = typeof filters?.limit === "number" && Number.isFinite(filters.limit)
         ? Math.max(1, Math.floor(filters.limit))
         : undefined;
@@ -4180,7 +4183,13 @@ export function issueService(db: Db) {
       const statuses = parseStatusFilter(filters?.status);
       if (statuses.length === 1) conditions.push(eq(issues.status, statuses[0]!));
       else if (statuses.length > 1) conditions.push(inArray(issues.status, statuses));
-      if (filters?.assigneeAgentId) conditions.push(eq(issues.assigneeAgentId, filters.assigneeAgentId));
+      const assigneeAgentFilter = parseIssueAssigneeAgentFilter(filters?.assigneeAgentId);
+      assertValidAssigneeAgentFilter(assigneeAgentFilter);
+      if (assigneeAgentFilter === null) {
+        conditions.push(isNull(issues.assigneeAgentId));
+      } else if (assigneeAgentFilter) {
+        conditions.push(eq(issues.assigneeAgentId, assigneeAgentFilter));
+      }
       if (filters?.assigneeUserId) conditions.push(eq(issues.assigneeUserId, filters.assigneeUserId));
       if (filters?.projectId) conditions.push(eq(issues.projectId, filters.projectId));
       if (filters?.workspaceId) {
