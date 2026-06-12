@@ -238,6 +238,15 @@ export function parseStatusFilter(input: string | readonly string[] | undefined)
 export interface IssueFilters {
   attention?: "blocked";
   status?: string | readonly string[];
+  /**
+   * Filter by assignee agent ID.
+   * - `string` (UUID): match issues assigned to that agent.
+   * - `null`: match unassigned issues (IS NULL).
+   * - The literal string `"null"` is also accepted as a sentinel for `null`
+   *   so that query-string callers can pass `?assigneeAgentId=null` directly.
+   *   The route layer normalises it before calling the service, but the service
+   *   also normalises it for direct callers.
+   */
   assigneeAgentId?: string | null;
   participantAgentId?: string;
   assigneeUserId?: string;
